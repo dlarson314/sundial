@@ -18,9 +18,10 @@ one below.  The figure 8s are analemmas, which show where the sun is at the same
 time every day over the course of a year.  Specifically, they give the location
 of the tip of a gnomon's shadow.  A gnomon is just a vertical spike which casts
 a shadow and is centered at the origin (0,0) of the graph. The graph is assumed
-to be layed out horizontal, with the axes aligned east and north.  Different
-rainbow colored analemmas correspond to different hours.  The path of the sun
-every day is in the direction of the dashed gray lines. 
+to be layed out horizontally, with the axes aligned east and north.  Different
+rainbow colored analemmas correspond to different hours, and the grey analemmas
+correspond to half-hours.  The path of the sun every day is in the direction of
+the dashed gray lines. 
 
 Different locations on the Earth have different patterns.  The plot below is for
 the location of the flag pole near the Statue of Liberty.
