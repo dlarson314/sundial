@@ -1,6 +1,8 @@
 import ephem
+
 import numpy as np
 import matplotlib.pyplot as mpl
+import scipy.optimize
 
 
 def projection_function(sun):
@@ -207,8 +209,144 @@ def foo1():
     mpl.savefig('test_analemmas_%d.pdf' % year)
     mpl.savefig('test_analemmas_%d.png' % year)
     mpl.show()
+
+
+def get_times_of_az(here, start_date, stop_date, target_az=(180,), sun=ephem.Sun()):
+    times = np.arange(start_date, stop_date, ephem.hour)
+
+    az_list = np.zeros(len(times)) 
+
+    for i, t in enumerate(times):
+        here.date = t
+        sun.compute(here)
+        az_list[i] = sun.az * 180 / np.pi;
+
+    bags = []
+
+    for target in target_az:
+        time_list = [] 
+        g = np.where((az_list[0:-1] < target) * (az_list[1:] > target))[0]
+        time_pairs = [(times[i], times[i+1]) for i in g] 
+
+        def f(t):
+            here.date = t
+            sun.compute(here)
+            return sun.az * 180 / np.pi - target
+                
+        for i, p in enumerate(time_pairs):
+            date1 = scipy.optimize.brentq(f, p[0], p[1]) 
+        
+            # 10 seconds before time of desired azimuth
+            here.date = date1 - 10 * ephem.second
+            sun.compute(here)
+            az0 = sun.az
+            alt0 = sun.alt
+
+            # Time of desired azimuth
+            here.date = date1 
+            sun.compute(here)
+            az1 = sun.az
+            alt1 = sun.alt
+
+            # 10 seconds after time of desired azimuth
+            here.date = date1 + 10 * ephem.second
+            sun.compute(here)
+            az2 = sun.az
+            alt2 = sun.alt
+
+            time_list.append((here.date, alt0, alt1, alt2, az0, az1, az2))
+
+        bags.append(time_list)
+
+    return bags
+
+
+def angle_to_tuple(radians):
+    degrees = abs(radians) * 180 / np.pi
+    minutes = degrees * 60
+    seconds = minutes * 60
+
+    degrees = np.floor(degrees)
+    if radians < 0:
+        degrees = -degrees
+    minutes = np.floor(minutes % 60)
+    seconds = np.floor(seconds % 60 + 0.5)
+
+    return degrees, minutes, seconds
+
+
+def make_table(here, start_date, stop_date, filename='test.tex', target_az=(90, 180, 270)):
+
+    bags = get_times_of_az(here, start_date, stop_date, target_az=target_az, sun=ephem.Sun())
+
+    numaz = len(target_az)
+
+    with open(filename, 'w') as f:
+        f.write(r'\begin{center}' + '\n')
+        form = 'r|' + '|'.join(['ccc' for i in range(numaz)])
+        f.write(r'\begin{tabular}{%s}' % form + '\n')
+        f.write(r'\hline' + '\n')
+        f.write(r'\hline' + '\n')
+        d1, m1, s1, = angle_to_tuple(here.lat)
+        d2, m2, s2, = angle_to_tuple(here.lon)
+        tup = (1+3*numaz, d1, m1, s1, d2, m2, s2)
+        f.write(r"\multicolumn{%d}{c}{latitude $ = %d^\circ%d'%d''$, longitude $ = %d^\circ%d'%d''$} \\"  % tup + '\n')
+        f.write(ephem.localtime(bags[0][0][0]).strftime('%B'))
+        for az in target_az:
+            f.write(r' & \multicolumn{3}{c}{$%d^\circ$}' % az)
+        f.write(r'\\' + '\n')
+        f.write(ephem.localtime(bags[0][0][0]).strftime('%Y'))
+        for az in target_az:
+            f.write(r' & Time & Alt & Rate')
+        f.write(r'\\' + '\n')
+        f.write(r'\hline' + '\n')
+
+        for i in range(len(bags[0]) - 1):
+            line = ''
+            t = bags[0][i]
+            line = ephem.localtime(t[0]).strftime('%a %d')
+            for a in range(len(target_az)):
+                t = bags[a][i]
+                line = line + ' & ' + ephem.localtime(t[0]).strftime('%X') + \
+                    ' & $%5.1f^\circ$ & %5.1f' % (t[3]*180/np.pi, (t[6] - t[5]) * 180 * 60 * 60 / np.pi / 10.0)
+            line = line + '  \\\\\n'
+            #print line,
+            f.write(line)
+        f.write(r'\hline' + '\n')
+        f.write(r'\end{tabular}' + '\n')
+        f.write(r'\end{center}' + '\n')
+
+        f.write("""
+Time is Eastern Standard Time or Eastern Daylight Time, as applicable.
+Alt is the altitude of the center of the sun above the
+horizon, in degrees.  Rate is the angular rate at which the shadow cast
+by a vertical pole on a level surface is changing, in minutes of arc per
+minute of time (or seconds of arc per second of time).
+""")
+
+
+def foo2():
+    here = get_observer()
+
+    start_date = ephem.Date('2017/12/01 01:00:00')
+    stop_date = ephem.Date('2018/01/02 01:00:00')
+
+    targets = [(90,135,180,225,270) for i in range(12)]
+
+    year = 2018
+
+    for i in range(12):
+        month = i + 1
+        start_date = ephem.Date('%04d/%02d/01 01:00:00' % (year, month))
+        stop_date = ephem.Date('%04d/%02d/02 01:00:00' % (year, month + 1))
+        filename = '%04d_month%02d.tex' % (year, month)
+        make_table(here, start_date, stop_date, filename=filename, target_az=targets[i])
+
+    
+
         
 
 if __name__ == "__main__":
-    foo1()
+    #foo1()  # Test code to create an analemma plot
+    foo2()  # Test code to create a table of time when sun is at various azumuth angles
 
