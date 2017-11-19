@@ -1,5 +1,6 @@
 import ephem
 
+import pytz
 import numpy as np
 import matplotlib.pyplot as mpl
 import scipy.optimize
@@ -275,7 +276,9 @@ def angle_to_tuple(radians):
     return degrees, minutes, seconds
 
 
-def make_table(here, start_date, stop_date, filename='test.tex', target_az=(90, 180, 270)):
+def make_table(here, start_date, stop_date, filename='test.tex', target_az=(90, 180, 270), zone=pytz.timezone('US/Eastern')):
+
+    utc = pytz.utc
 
     bags = get_times_of_az(here, start_date, stop_date, target_az=target_az, sun=ephem.Sun())
 
@@ -304,10 +307,20 @@ def make_table(here, start_date, stop_date, filename='test.tex', target_az=(90, 
         for i in range(len(bags[0]) - 1):
             line = ''
             t = bags[0][i]
-            line = ephem.localtime(t[0]).strftime('%a %d')
+            local_datetime = t[0].datetime().replace(tzinfo=utc).astimezone(zone)
+            line = local_datetime.strftime('%a %d')
+            tup = local_datetime.timetuple()
+            local_year, local_month, local_day = tup[0], tup[1], tup[2]
             for a in range(len(target_az)):
                 t = bags[a][i]
-                line = line + ' & ' + ephem.localtime(t[0]).strftime('%X') + \
+                local_datetime = t[0].datetime().replace(tzinfo=utc).astimezone(zone)
+                # Checking that we're using the same day for all columns in a row
+                tup = local_datetime.timetuple()
+                local_year2, local_month2, local_day2 = tup[0], tup[1], tup[2]
+                assert(local_year2 == local_year)
+                assert(local_month2 == local_month)
+                assert(local_day2 == local_day)
+                line = line + ' & ' + local_datetime.strftime('%X') + \
                     ' & $%5.1f^\circ$ & %5.1f' % (t[3]*180/np.pi, (t[6] - t[5]) * 180 * 60 * 60 / np.pi / 10.0)
             line = line + '  \\\\\n'
             #print line,
@@ -328,19 +341,19 @@ minute of time (or seconds of arc per second of time).
 def foo2():
     here = get_observer()
 
-    start_date = ephem.Date('2017/12/01 01:00:00')
-    stop_date = ephem.Date('2018/01/02 01:00:00')
-
     targets = [(90,135,180,225,270) for i in range(12)]
 
     year = 2018
 
+    my_timezone = pytz.timezone('US/Eastern')
     for i in range(12):
         month = i + 1
-        start_date = ephem.Date('%04d/%02d/01 01:00:00' % (year, month))
-        stop_date = ephem.Date('%04d/%02d/02 01:00:00' % (year, month + 1))
+        # Use UTC times close to midnight in your local time zone
+        start_date = ephem.Date('%04d/%02d/01 05:00:00' % (year, month))
+        stop_date = ephem.Date('%04d/%02d/02 05:00:00' % (year, month + 1))
         filename = '%04d_month%02d.tex' % (year, month)
-        make_table(here, start_date, stop_date, filename=filename, target_az=targets[i])
+        make_table(here, start_date, stop_date, filename=filename,
+            target_az=targets[i], zone=my_timezone)
 
     
 
